@@ -1,18 +1,18 @@
 #!/bin/bash
 
-# Retrieve Docker Hub credentials from AWS Secrets Manager
-SECRET_JSON=$(aws secretsmanager get-secret-value --secret-id arn:aws:secretsmanager:us-east-1:339712721384:secret:docker-us-JYDQoe --query SecretString --output text)
-DOCKERHUB_USERNAME=$(echo $SECRET_JSON | jq -r '.dockerhub_username')
-DOCKERHUB_PASSWORD=$(echo $SECRET_JSON | jq -r '.dockerhub_password')
+# Retrieve Docker Hub credentials from Jenkins Credentials
+DOCKERHUB_USERNAME="foxe03"  # Replace with your Docker Hub username
 
-# Login to Docker Hub
-echo "Logging into Docker Hub..."
-echo "$DOCKERHUB_PASSWORD" | docker login -u "$DOCKERHUB_USERNAME" --password-stdin
+# Login to Docker Hub using Jenkins-stored PAT
+docker login -u "$DOCKERHUB_USERNAME" -p "$DOCKERHUB_PAT"
+
+# Set the image name correctly
+IMAGE_NAME="$DOCKERHUB_USERNAME/your-app-image:latest"
 
 # Build Docker Image
 echo "Building Docker image..."
-docker build -t "$DOCKERHUB_USERNAME/your-app-image:latest" .
+docker build -t "$IMAGE_NAME" .
 
 # Push Docker Image to Docker Hub
 echo "Pushing Docker image to Docker Hub..."
-docker push "$DOCKERHUB_USERNAME/your-app-image:latest"
+docker push "$IMAGE_NAME"
