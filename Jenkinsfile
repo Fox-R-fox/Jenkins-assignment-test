@@ -9,7 +9,7 @@ pipeline {
         stage('Checkout Code') {
             steps {
                 // Checkout code from GitHub
-                git url: "https://github.com/Fox-R-fox/Jenkins-assignment-test.git", branch: 'main'
+                git url: "https://github.com/Fox-R-fox/Jenkins-assignment-test.git", branch: 'master'
             }
         }
 
