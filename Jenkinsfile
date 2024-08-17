@@ -2,14 +2,14 @@ pipeline {
     agent any
 
     environment {
-        GITHUB_PAT = credentials('github-pat')  // Reference to your stored GitHub token
+        DOCKERHUB_PAT = credentials('docker-hub-pat')  // Reference to your stored Docker Hub PAT
     }
 
     stages {
         stage('Checkout Code') {
             steps {
-                // Use the GitHub PAT in the repository URL
-                git url: "https://$GITHUB_PAT@github.com/Fox-R-fox/Jenkins-assignment-test.git", branch: 'master'
+                // Checkout code from GitHub
+                git url: "https://github.com/Fox-R-fox/Jenkins-assignment-test.git", branch: 'main'
             }
         }
 
