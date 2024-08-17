@@ -2,7 +2,7 @@ pipeline {
     agent any
 
     environment {
-        DOCKERHUB_CREDENTIALS = credentials('dockerhub-credentials') // Your DockerHub credentials ID
+        AWS_DEFAULT_REGION = 'us-east-1'  // Set your AWS region
     }
 
     stages {
@@ -18,9 +18,7 @@ pipeline {
                 // Run the shell script to build and push Docker image
                 script {
                     sh 'chmod +x scripts/build_push.sh'
-                    withEnv(["DOCKERHUB_PASSWORD=${DOCKERHUB_CREDENTIALS_PSW}"]) {
-                        sh './scripts/build_push.sh'
-                    }
+                    sh './scripts/build_push.sh'
                 }
             }
         }
