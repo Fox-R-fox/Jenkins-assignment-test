@@ -2,14 +2,14 @@ pipeline {
     agent any
 
     environment {
-        AWS_DEFAULT_REGION = 'us-east-1'  // Set your AWS region
+        GITHUB_PAT = credentials('github-pat')  // Reference to your stored GitHub token
     }
 
     stages {
         stage('Checkout Code') {
             steps {
-                // Clone the repository
-                git url: 'https://github.com/your/repository.git', branch: 'main'
+                // Use the GitHub PAT in the repository URL
+                git url: "https://$GITHUB_PAT@github.com/Fox-R-fox/Jenkins-assignment-test.git", branch: 'master'
             }
         }
 
