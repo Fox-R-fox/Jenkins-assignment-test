@@ -1,0 +1,21 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: game-library-deployment
+  labels:
+    app: game-library
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: game-library
+  template:
+    metadata:
+      labels:
+        app: game-library
+    spec:
+      containers:
+      - name: game-library
+        image: yourdockerhubusername/game-library-app:latest
+        ports:
+        - containerPort: 80

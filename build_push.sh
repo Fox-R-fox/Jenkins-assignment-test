@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Variables
-IMAGE_NAME="yourdockerhubusername/your-app-image:latest"
+IMAGE_NAME="yourdockerhubusername/game-library-app:latest"
 DOCKERHUB_USERNAME="yourdockerhubusername"
 
 # Login to Docker Hub
