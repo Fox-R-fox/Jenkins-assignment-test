@@ -30,8 +30,9 @@ pipeline {
                         sh '''
                             curl -o aws-iam-authenticator https://amazon-eks.s3.us-west-2.amazonaws.com/1.19.6/2021-01-05/bin/linux/amd64/aws-iam-authenticator
                             chmod +x ./aws-iam-authenticator
-                            mv aws-iam-authenticator /usr/bin/aws-iam-authenticator
+                            mv aws-iam-authenticator ${WORKSPACE}/aws-iam-authenticator
                         '''
+                        env.PATH = "${env.WORKSPACE}:${env.PATH}" // Add the directory to the PATH
                     } else {
                         echo "AWS IAM Authenticator is already installed"
                     }
@@ -49,7 +50,7 @@ pipeline {
             }
         }
 
-        // Remaining stages...
+        // Other stages...
     }
 
     post {
