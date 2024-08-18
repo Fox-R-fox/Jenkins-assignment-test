@@ -73,8 +73,8 @@ resource "aws_security_group" "eks_worker_sg" {
 }
 
 # IAM Role for EKS Cluster
-resource "aws_iam_role" "eks_cluster_role" {
-  name               = "eks-cluster-role"
+resource "aws_iam_role" "eks_cluster_role_unique" {
+  name               = "eks-cluster-role-unique"
   assume_role_policy = <<EOF
 {
   "Version": "2012-10-17",
@@ -91,13 +91,13 @@ resource "aws_iam_role" "eks_cluster_role" {
 EOF
 
   tags = {
-    Name = "eks-cluster-role"
+    Name = "eks-cluster-role-unique"
   }
 }
 
 # IAM Role for EKS Worker Nodes
-resource "aws_iam_role" "eks_worker_role" {
-  name               = "eks-worker-role"
+resource "aws_iam_role" "eks_worker_role_unique" {
+  name               = "eks-worker-role-unique"
   assume_role_policy = <<EOF
 {
   "Version": "2012-10-17",
@@ -114,41 +114,41 @@ resource "aws_iam_role" "eks_worker_role" {
 EOF
 
   tags = {
-    Name = "eks-worker-role"
+    Name = "eks-worker-role-unique"
   }
 }
 
 # Attaching Policies to the EKS Cluster Role
 resource "aws_iam_role_policy_attachment" "eks_cluster_policy" {
-  role       = aws_iam_role.eks_cluster_role.name
+  role       = aws_iam_role.eks_cluster_role_unique.name
   policy_arn = "arn:aws:iam::aws:policy/AmazonEKSClusterPolicy"
 }
 
 resource "aws_iam_role_policy_attachment" "eks_vpc_resource_controller" {
-  role       = aws_iam_role.eks_cluster_role.name
+  role       = aws_iam_role.eks_cluster_role_unique.name
   policy_arn = "arn:aws:iam::aws:policy/AmazonEKSVPCResourceController"
 }
 
 # Attaching Policies to the EKS Worker Role
 resource "aws_iam_role_policy_attachment" "eks_worker_node_policy" {
-  role       = aws_iam_role.eks_worker_role.name
+  role       = aws_iam_role.eks_worker_role_unique.name
   policy_arn = "arn:aws:iam::aws:policy/AmazonEKSWorkerNodePolicy"
 }
 
 resource "aws_iam_role_policy_attachment" "eks_cni_policy" {
-  role       = aws_iam_role.eks_worker_role.name
+  role       = aws_iam_role.eks_worker_role_unique.name
   policy_arn = "arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy"
 }
 
 resource "aws_iam_role_policy_attachment" "ec2_container_registry_readonly" {
-  role       = aws_iam_role.eks_worker_role.name
+  role       = aws_iam_role.eks_worker_role_unique.name
   policy_arn = "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly"
 }
 
 # Creating EKS Cluster
 resource "aws_eks_cluster" "game_library_cluster" {
   name     = "game-library-cluster"
-  role_arn = aws_iam_role.eks_cluster_role.arn
+  role_arn = aws_iam_role.eks_cluster_role_unique.arn
 
   vpc_config {
     subnet_ids = aws_subnet.public_subnets[*].id
@@ -168,7 +168,7 @@ resource "aws_eks_cluster" "game_library_cluster" {
 resource "aws_eks_node_group" "game_library_nodes" {
   cluster_name    = aws_eks_cluster.game_library_cluster.name
   node_group_name = "game-library-nodes"
-  node_role_arn   = aws_iam_role.eks_worker_role.arn
+  node_role_arn   = aws_iam_role.eks_worker_role_unique.arn
 
   subnet_ids = aws_subnet.private_subnets[*].id
 
