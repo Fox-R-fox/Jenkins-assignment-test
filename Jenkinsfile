@@ -2,15 +2,15 @@ pipeline {
     agent any
 
     environment {
-        AWS_DEFAULT_REGION = 'us-west-2' // Change this to your region
-        AWS_CREDENTIALS_ID = 'aws'       // This is the ID of your AWS credentials in Jenkins
+        AWS_DEFAULT_REGION = 'us-west-2'
+        AWS_CREDENTIALS_ID = 'aws'
+        EKS_WORKER_ROLE_ARN = 'arn:aws:iam::339712721384:role/eksssttooooo'
     }
 
     stages {
         stage('Install AWS CLI') {
             steps {
                 script {
-                    // Check if AWS CLI is already installed
                     def checkAWSCLI = sh(script: "which aws || echo 'Not installed'", returnStdout: true).trim()
                     if (checkAWSCLI == 'Not installed') {
                         echo 'Installing AWS CLI...'
@@ -26,27 +26,9 @@ pipeline {
             }
         }
 
-        stage('Retrieve IAM Role ARN') {
-            steps {
-                withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', credentialsId: AWS_CREDENTIALS_ID]]) {
-                    script {
-                        def roleArn = sh(
-                            script: "aws iam get-role --role-name eks-worker-node-role --query 'Role.Arn' --output text",
-                            returnStdout: true
-                        ).trim()
-                        echo "Retrieved IAM Role ARN: ${roleArn}"
-
-                        // Store the ARN for use in later stages
-                        env.EKS_WORKER_ROLE_ARN = roleArn
-                    }
-                }
-            }
-        }
-
         stage('Create aws-auth ConfigMap') {
             steps {
                 script {
-                    // Generate the aws-auth.yaml file dynamically
                     sh """
                     cat <<EOF > aws-auth.yaml
                     apiVersion: v1
@@ -72,7 +54,6 @@ pipeline {
             steps {
                 withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', credentialsId: AWS_CREDENTIALS_ID]]) {
                     script {
-                        // Apply the aws-auth.yaml file to the cluster
                         sh 'kubectl apply -f aws-auth.yaml'
                         echo "aws-auth ConfigMap applied to EKS Cluster"
                     }
@@ -84,7 +65,6 @@ pipeline {
             steps {
                 withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', credentialsId: AWS_CREDENTIALS_ID]]) {
                     script {
-                        // Check if worker nodes are ready
                         sh 'kubectl get nodes'
                     }
                 }
