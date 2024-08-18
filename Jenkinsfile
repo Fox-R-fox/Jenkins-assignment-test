@@ -43,11 +43,9 @@ pipeline {
                         // Update kubeconfig for the cluster
                         sh 'aws eks update-kubeconfig --name game-library-cluster'
 
-                        // Validate the context
+                        // Switch context and verify auth
                         sh 'kubectl config use-context arn:aws:eks:us-east-1:339712721384:cluster/game-library-cluster'
-                        
-                        // Debugging kubectl auth issue
-                        sh 'kubectl get nodes'
+                        sh 'kubectl get nodes' // Try fetching nodes again
                     }
                 }
             }
@@ -65,7 +63,7 @@ pipeline {
                       namespace: kube-system
                     data:
                       mapRoles: |
-                        - rolearn: ${EKS_WORKER_ROLE_ARN}
+                        - rolearn: arn:aws:iam::339712721384:role/eks-worker-role
                           username: system:node:{{EC2PrivateDNSName}}
                           groups:
                             - system:bootstrappers
@@ -81,6 +79,8 @@ pipeline {
             steps {
                 withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', credentialsId: AWS_CREDENTIALS_ID]]) {
                     script {
+                        // Re-authenticate with EKS after kubeconfig update
+                        sh 'kubectl config view'
                         sh 'kubectl apply -f aws-auth.yaml'
                     }
                 }
