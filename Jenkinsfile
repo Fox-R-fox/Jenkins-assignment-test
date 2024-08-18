@@ -26,6 +26,17 @@ pipeline {
             }
         }
 
+        stage('Authenticate with Kubernetes') {
+            steps {
+                withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', credentialsId: AWS_CREDENTIALS_ID]]) {
+                    script {
+                        // Authenticate with the EKS cluster
+                        sh "aws eks update-kubeconfig --name <cluster-name> --region ${env.AWS_DEFAULT_REGION}"
+                    }
+                }
+            }
+        }
+
         stage('Create aws-auth ConfigMap') {
             steps {
                 script {
