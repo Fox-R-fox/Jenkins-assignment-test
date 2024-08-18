@@ -25,5 +25,38 @@ pipeline {
                 }
             }
         }
+
+        stage('Provision Infrastructure with Terraform') {
+            steps {
+                dir('terraform') {
+                    // Initialize and apply Terraform configuration
+                    sh '''
+                    terraform init
+                    terraform apply -auto-approve
+                    '''
+                }
+            }
+        }
+
+        stage('Deploy to Kubernetes') {
+            steps {
+                dir('kubernetes') {
+                    // Apply Kubernetes configurations
+                    sh 'kubectl apply -f deployment.yaml'
+                }
+            }
+        }
+    }
+    
+    post {
+        always {
+            echo 'Pipeline completed.'
+        }
+        success {
+            echo 'Pipeline succeeded.'
+        }
+        failure {
+            echo 'Pipeline failed.'
+        }
     }
 }
