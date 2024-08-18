@@ -2,15 +2,16 @@ pipeline {
     agent any
 
     environment {
-        AWS_DEFAULT_REGION = 'us-east-1' // Adjust your region
-        AWS_CREDENTIALS_ID = 'aws'       // Ensure the correct AWS credentials are used
-        EKS_CLUSTER_NAME = 'game-library-cluster'  // EKS Cluster name
+        AWS_DEFAULT_REGION = 'us-east-1'
+        AWS_CREDENTIALS_ID = 'aws'
+        EKS_CLUSTER_NAME = 'game-library-cluster'
     }
 
     stages {
-        stage('Install AWS CLI') {
+        stage('Install AWS CLI and IAM Authenticator') {
             steps {
                 script {
+                    // Install AWS CLI if missing
                     def checkAWSCLI = sh(script: "which aws || echo 'Not installed'", returnStdout: true).trim()
                     if (checkAWSCLI == 'Not installed') {
                         echo 'Installing AWS CLI...'
@@ -22,6 +23,19 @@ pipeline {
                     } else {
                         echo "AWS CLI is already installed"
                     }
+
+                    // Install AWS IAM Authenticator if missing
+                    def checkAWSIAMAuthenticator = sh(script: "which aws-iam-authenticator || echo 'Not installed'", returnStdout: true).trim()
+                    if (checkAWSIAMAuthenticator == 'Not installed') {
+                        echo 'Installing AWS IAM Authenticator...'
+                        sh '''
+                            curl -o aws-iam-authenticator https://amazon-eks.s3.us-west-2.amazonaws.com/1.19.6/2021-01-05/bin/linux/amd64/aws-iam-authenticator
+                            chmod +x ./aws-iam-authenticator
+                            sudo mv aws-iam-authenticator /usr/local/bin
+                        '''
+                    } else {
+                        echo "AWS IAM Authenticator is already installed"
+                    }
                 }
             }
         }
@@ -30,10 +44,7 @@ pipeline {
             steps {
                 withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', credentialsId: AWS_CREDENTIALS_ID]]) {
                     script {
-                        // Authenticate with the EKS cluster
-                        sh """
-                            aws eks update-kubeconfig --name ${EKS_CLUSTER_NAME}
-                        """
+                        sh "aws eks update-kubeconfig --name ${EKS_CLUSTER_NAME} --region ${AWS_DEFAULT_REGION}"
                     }
                 }
             }
@@ -42,7 +53,6 @@ pipeline {
         stage('Create aws-auth ConfigMap') {
             steps {
                 script {
-                    // Generate the aws-auth.yaml file dynamically
                     sh """
                     cat <<EOF > aws-auth.yaml
                     apiVersion: v1
@@ -59,7 +69,6 @@ pipeline {
                             - system:nodes
                     EOF
                     """
-                    echo "aws-auth.yaml file created"
                 }
             }
         }
@@ -68,9 +77,7 @@ pipeline {
             steps {
                 withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', credentialsId: AWS_CREDENTIALS_ID]]) {
                     script {
-                        // Apply the aws-auth.yaml file to the cluster
                         sh 'kubectl apply -f aws-auth.yaml'
-                        echo "aws-auth ConfigMap applied to EKS Cluster"
                     }
                 }
             }
@@ -80,7 +87,6 @@ pipeline {
             steps {
                 withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', credentialsId: AWS_CREDENTIALS_ID]]) {
                     script {
-                        // Check if worker nodes are ready
                         sh 'kubectl get nodes'
                     }
                 }
