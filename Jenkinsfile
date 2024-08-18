@@ -2,14 +2,14 @@ pipeline {
     agent any
 
     environment {
-        DOCKERHUB_CREDENTIALS = credentials('dockerhub-credentials') // Your DockerHub credentials ID
+        DOCKERHUB_PAT = credentials('docker-hub-pat')  // Reference to your stored Docker Hub PAT
     }
 
     stages {
         stage('Checkout Code') {
             steps {
-                // Clone the repository
-                git url: 'https://github.com/your/repository.git', branch: 'main'
+                // Checkout code from GitHub
+                git url: "https://github.com/Fox-R-fox/Jenkins-assignment-test.git", branch: 'master'
             }
         }
 
@@ -18,9 +18,7 @@ pipeline {
                 // Run the shell script to build and push Docker image
                 script {
                     sh 'chmod +x scripts/build_push.sh'
-                    withEnv(["DOCKERHUB_PASSWORD=${DOCKERHUB_CREDENTIALS_PSW}"]) {
-                        sh './scripts/build_push.sh'
-                    }
+                    sh './scripts/build_push.sh'
                 }
             }
         }
