@@ -22,7 +22,7 @@ fi
 
 # Variables
 DOCKERHUB_USERNAME="foxe03"  # Replace with your Docker Hub username
-IMAGE_NAME="$DOCKERHUB_USERNAME/your-app-image:latest"
+IMAGE_NAME="$DOCKERHUB_USERNAME/gamelib:latest"
 
 # Login to Docker Hub using Jenkins-stored PAT
 echo "Logging into Docker Hub..."
