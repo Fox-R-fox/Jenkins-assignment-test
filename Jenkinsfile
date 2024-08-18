@@ -44,12 +44,14 @@ pipeline {
         }
         stage('Build Docker Image') {
             steps {
-                // Add your Docker build steps here
+                // Placeholder for Docker build commands
+                echo "Building Docker image..."
             }
         }
         stage('Deploy Docker Image to Kubernetes') {
             steps {
-                // Add your deployment steps here
+                // Placeholder for Kubernetes deployment commands
+                echo "Deploying Docker image to Kubernetes..."
             }
         }
     }
