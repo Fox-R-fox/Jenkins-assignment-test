@@ -1,23 +1,12 @@
-stage('Create aws-auth ConfigMap') {
-    steps {
-        script {
-            sh """
-            cat <<EOF > aws-auth.yaml
-            apiVersion: v1
-            kind: ConfigMap
-            metadata:
-              name: aws-auth
-              namespace: kube-system
-            data:
-              mapRoles: |
-                - rolearn: ${env.EKS_WORKER_ROLE_ARN}
-                  username: system:node:{{EC2PrivateDNSName}}
-                  groups:
-                    - system:bootstrappers
-                    - system:nodes
-            EOF
-            """
-            echo "aws-auth.yaml file created"
-        }
-    }
-}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: aws-auth
+  namespace: kube-system
+data:
+  mapRoles: |
+    - rolearn: arn:aws:iam::ACCOUNT_ID:role/EKS_WORKER_ROLE
+      username: system:node:{{EC2PrivateDNSName}}
+      groups:
+        - system:bootstrappers
+        - system:nodes
