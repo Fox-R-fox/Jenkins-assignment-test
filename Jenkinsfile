@@ -4,30 +4,25 @@ pipeline {
     environment {
         AWS_DEFAULT_REGION = 'us-east-1'
         AWS_CREDENTIALS_ID = 'aws'
-        PATH = "${WORKSPACE}/bin:${env.PATH}"  // Add a custom bin directory to PATH
+        PATH = "${env.WORKSPACE}/bin:${env.PATH}"
     }
 
     stages {
         stage('Install AWS CLI and IAM Authenticator') {
             steps {
                 script {
-                    // Check if AWS CLI is already installed
+                    // Ensure AWS CLI is installed
                     def checkAWSCLI = sh(script: "which aws || echo 'Not installed'", returnStdout: true).trim()
                     if (checkAWSCLI == 'Not installed') {
-                        echo 'Installing AWS CLI...'
-                        sh '''
-                            curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
-                            unzip awscliv2.zip
-                            sudo ./aws/install
-                        '''
+                        error "AWS CLI not installed. Please install it."
                     } else {
                         echo "AWS CLI is already installed"
                     }
 
-                    // Install AWS IAM Authenticator in Jenkins workspace
-                    def checkIAMAuthenticator = sh(script: "which aws-iam-authenticator || echo 'Not installed'", returnStdout: true).trim()
-                    if (checkIAMAuthenticator == 'Not installed') {
-                        echo 'Installing AWS IAM Authenticator...'
+                    // Ensure aws-iam-authenticator is installed
+                    def checkIAMAuth = sh(script: "which aws-iam-authenticator || echo 'Not installed'", returnStdout: true).trim()
+                    if (checkIAMAuth == 'Not installed') {
+                        echo "Installing AWS IAM Authenticator..."
                         sh '''
                             mkdir -p ${WORKSPACE}/bin
                             curl -o ${WORKSPACE}/bin/aws-iam-authenticator https://amazon-eks.s3.us-east-1.amazonaws.com/1.19.6/2021-01-05/bin/linux/amd64/aws-iam-authenticator
@@ -44,7 +39,11 @@ pipeline {
             steps {
                 withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', credentialsId: AWS_CREDENTIALS_ID]]) {
                     script {
+                        // Update kubeconfig for the cluster
                         sh 'aws eks update-kubeconfig --name game-library-cluster'
+                        // Debug step: Check Kubernetes context and nodes
+                        sh 'kubectl config view'
+                        sh 'kubectl get nodes'
                     }
                 }
             }
@@ -53,6 +52,7 @@ pipeline {
         stage('Create aws-auth ConfigMap') {
             steps {
                 script {
+                    // Generate aws-auth.yaml
                     sh '''
                     cat <<EOF > aws-auth.yaml
                     apiVersion: v1
@@ -62,7 +62,7 @@ pipeline {
                       namespace: kube-system
                     data:
                       mapRoles: |
-                        - rolearn: arn:aws:iam::<YOUR-AWS-ACCOUNT-ID>:role/<YOUR-WORKER-ROLE-NAME>
+                        - rolearn: ${EKS_WORKER_ROLE_ARN}
                           username: system:node:{{EC2PrivateDNSName}}
                           groups:
                             - system:bootstrappers
@@ -78,8 +78,8 @@ pipeline {
             steps {
                 withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', credentialsId: AWS_CREDENTIALS_ID]]) {
                     script {
+                        // Apply the aws-auth.yaml to the cluster
                         sh 'kubectl apply -f aws-auth.yaml'
-                        echo "aws-auth ConfigMap applied to EKS Cluster"
                     }
                 }
             }
@@ -87,10 +87,9 @@ pipeline {
 
         stage('Check Worker Node Status') {
             steps {
-                withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', credentialsId: AWS_CREDENTIALS_ID]]) {
-                    script {
-                        sh 'kubectl get nodes'
-                    }
+                script {
+                    // Check if worker nodes are ready
+                    sh 'kubectl get nodes'
                 }
             }
         }
