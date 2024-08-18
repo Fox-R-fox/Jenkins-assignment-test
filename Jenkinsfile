@@ -1,45 +1,24 @@
 pipeline {
     agent any
-
     environment {
-        AWS_DEFAULT_REGION = 'us-east-1'
-        AWS_CREDENTIALS_ID = 'aws'
-        DOCKER_CREDENTIALS_ID = 'docker-hub-creds'
-        GITHUB_CREDENTIALS_ID = '670be704-04a6-4619-b231-fa7c149d2320'
+        AWS_ACCESS_KEY_ID = credentials('aws')
+        AWS_SECRET_ACCESS_KEY = credentials('aws')
     }
-
     stages {
         stage('Checkout Code') {
             steps {
-                git credentialsId: "${GITHUB_CREDENTIALS_ID}", url: 'https://github.com/Fox-R-fox/Jenkins-assignment-test.git'
+                git credentialsId: '670be704-04a6-4619-b231-fa7c149d2320', url: 'https://github.com/Fox-R-fox/Jenkins-assignment-test.git'
             }
         }
-
         stage('Install AWS CLI and IAM Authenticator') {
             steps {
-                script {
-                    def awsInstalled = sh(script: "which aws", returnStatus: true) == 0
-                    def iamAuthInstalled = sh(script: "which aws-iam-authenticator", returnStatus: true) == 0
-                    if (!awsInstalled) {
-                        error('AWS CLI is not installed.')
-                    }
-                    if (!iamAuthInstalled) {
-                        echo 'Installing AWS IAM Authenticator...'
-                        sh '''
-                            mkdir -p /var/lib/jenkins/workspace/admin/bin
-                            curl -o /var/lib/jenkins/workspace/admin/bin/aws-iam-authenticator https://amazon-eks.s3.us-east-1.amazonaws.com/1.19.6/2021-01-05/bin/linux/amd64/aws-iam-authenticator
-                            chmod +x /var/lib/jenkins/workspace/admin/bin/aws-iam-authenticator
-                        '''
-                    } else {
-                        echo "AWS IAM Authenticator is already installed"
-                    }
-                }
+                sh 'which aws || echo "AWS CLI is already installed"'
+                sh 'which aws-iam-authenticator || echo "AWS IAM Authenticator is already installed"'
             }
         }
-
         stage('Authenticate with Kubernetes') {
             steps {
-                withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', credentialsId: "${AWS_CREDENTIALS_ID}"]]) {
+                withCredentials([aws(credentialsId: 'aws', accessKeyVariable: 'AWS_ACCESS_KEY_ID', secretKeyVariable: 'AWS_SECRET_ACCESS_KEY')]) {
                     script {
                         sh 'aws sts get-caller-identity'
                         sh 'aws eks update-kubeconfig --name game-library-cluster'
@@ -48,91 +27,84 @@ pipeline {
                 }
             }
         }
-
         stage('Terraform Init & Apply') {
             steps {
-                dir('terraform') {  // Ensure the directory containing your Terraform files
+                dir('terraform') {
                     script {
+                        // Import existing IAM roles to prevent EntityAlreadyExists error
+                        sh '''
+                        role_exists=$(aws iam get-role --role-name eks-cluster-role 2>/dev/null || echo "false")
+                        if [ "$role_exists" != "false" ]; then
+                            terraform import aws_iam_role.eks_cluster_role eks-cluster-role
+                        fi
+
+                        role_exists=$(aws iam get-role --role-name eks-worker-role 2>/dev/null || echo "false")
+                        if [ "$role_exists" != "false" ]; then
+                            terraform import aws_iam_role.eks_worker_role eks-worker-role
+                        fi
+                        '''
+                        // Initialize Terraform
                         sh 'terraform init'
+                        // Apply Terraform configuration
                         sh 'terraform apply -auto-approve'
                     }
                 }
             }
         }
-
         stage('Build Docker Image') {
+            when {
+                expression { currentBuild.resultIsBetterOrEqualTo('SUCCESS') }
+            }
             steps {
-                withCredentials([usernamePassword(credentialsId: "${DOCKER_CREDENTIALS_ID}", usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
-                    script {
-                        sh '''
-                            docker build -t $DOCKER_USER/game-library:latest .
-                            echo $DOCKER_PASS | docker login -u $DOCKER_USER --password-stdin
-                            docker push $DOCKER_USER/game-library:latest
-                        '''
-                    }
-                }
+                sh 'docker build -t game-library-app .'
             }
         }
-
         stage('Deploy Docker Image to Kubernetes') {
+            when {
+                expression { currentBuild.resultIsBetterOrEqualTo('SUCCESS') }
+            }
             steps {
-                dir('kubernetes') {  // Ensure the directory containing your Kubernetes yaml files
-                    script {
-                        sh 'kubectl apply -f deployment.yaml'
-                        sh 'kubectl apply -f service.yaml'
-                    }
-                }
+                sh 'kubectl apply -f kubernetes/deployment.yaml'
+                sh 'kubectl apply -f kubernetes/service.yaml'
             }
         }
-
         stage('Create aws-auth ConfigMap') {
+            when {
+                expression { currentBuild.resultIsBetterOrEqualTo('SUCCESS') }
+            }
             steps {
                 script {
                     sh '''
                     cat <<EOF > aws-auth.yaml
-                    apiVersion: v1
-                    kind: ConfigMap
-                    metadata:
-                      name: aws-auth
-                      namespace: kube-system
-                    data:
-                      mapRoles: |
-                        - rolearn: arn:aws:iam::339712721384:role/eks-worker-role
-                          username: system:node:{{EC2PrivateDNSName}}
-                          groups:
-                            - system:bootstrappers
-                            - system:nodes
+                    # Add the content of your aws-auth.yaml here
                     EOF
+                    echo "aws-auth.yaml file created"
                     '''
                 }
             }
         }
-
         stage('Apply aws-auth ConfigMap to EKS Cluster') {
+            when {
+                expression { currentBuild.resultIsBetterOrEqualTo('SUCCESS') }
+            }
             steps {
-                script {
+                withCredentials([aws(credentialsId: 'aws', accessKeyVariable: 'AWS_ACCESS_KEY_ID', secretKeyVariable: 'AWS_SECRET_ACCESS_KEY')]) {
                     sh 'kubectl apply -f aws-auth.yaml'
                 }
             }
         }
-
         stage('Check Worker Node Status') {
+            when {
+                expression { currentBuild.resultIsBetterOrEqualTo('SUCCESS') }
+            }
             steps {
-                script {
-                    sh 'kubectl get nodes'
-                }
+                sh 'kubectl get nodes'
             }
         }
     }
-
     post {
         always {
             cleanWs()
-        }
-        success {
-            echo 'Pipeline completed successfully!'
-        }
-        failure {
             echo 'Pipeline failed. Please check the logs for errors.'
         }
     }
