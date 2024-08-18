@@ -7,7 +7,6 @@ DOCKERHUB_PASSWORD=$2
 # Check if Docker is installed, if not, install it
 if ! [ -x "$(command -v docker)" ]; then
   echo "Docker is not installed. Installing Docker..."
-  
   sudo yum update -y
   sudo yum install docker -y
   sudo systemctl start docker
@@ -21,7 +20,6 @@ fi
 # Check if Terraform is installed, if not, install it
 if ! [ -x "$(command -v terraform)" ]; then
   echo "Terraform is not installed. Installing Terraform..."
-  
   sudo yum install -y yum-utils
   sudo yum-config-manager --add-repo https://rpm.releases.hashicorp.com/AmazonLinux/hashicorp.repo
   sudo yum -y install terraform
@@ -33,7 +31,6 @@ fi
 # Check if Kubernetes CLI (kubectl) is installed, if not, install it
 if ! [ -x "$(command -v kubectl)" ]; then
   echo "Kubectl is not installed. Installing kubectl..."
-  
   curl -LO "https://storage.googleapis.com/kubernetes-release/release/$(curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt)/bin/linux/amd64/kubectl"
   chmod +x ./kubectl
   sudo mv ./kubectl /usr/local/bin/kubectl
