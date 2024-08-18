@@ -3,7 +3,7 @@ pipeline {
 
     environment {
         DOCKERHUB_CREDS = credentials('docker-hub-creds')
-        PATH = "/usr/local/bin:$PATH" // Ensure Docker and kubectl are in the PATH
+        PATH = "/usr/local/bin:$PATH" // Ensure Docker, Terraform, and kubectl are in the PATH
     }
 
     stages {
@@ -17,10 +17,7 @@ pipeline {
             steps {
                 script {
                     sh '''
-                    # Ensure the script is executable
                     chmod +x build_push.sh
-                    
-                    # Execute the build and push script with Docker Hub credentials
                     ./build_push.sh $DOCKERHUB_CREDS_USR $DOCKERHUB_CREDS_PSW
                     '''
                 }
@@ -29,23 +26,28 @@ pipeline {
 
         stage('Provision Infrastructure with Terraform') {
             steps {
-                dir('terraform') {
-                    sh '''
-                    # Initialize and apply Terraform configurations
-                    terraform init
-                    terraform apply -auto-approve
-                    '''
+                script {
+                    // Ensure Terraform is installed and available
+                    sh 'terraform --version'
+                    dir('terraform') {
+                        sh '''
+                        terraform init
+                        terraform apply -auto-approve
+                        '''
+                    }
                 }
             }
         }
 
         stage('Deploy to Kubernetes') {
             steps {
-                dir('kubernetes') {
-                    sh '''
-                    # Apply Kubernetes deployment configurations
-                    kubectl apply -f deployment.yaml
-                    '''
+                withCredentials([file(credentialsId: 'kubeconfig', variable: 'KUBECONFIG')]) {
+                    script {
+                        sh '''
+                        export KUBECONFIG=$KUBECONFIG
+                        kubectl apply -f deployment.yaml
+                        '''
+                    }
                 }
             }
         }
