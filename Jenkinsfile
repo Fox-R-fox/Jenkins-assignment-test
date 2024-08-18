@@ -42,6 +42,26 @@ pipeline {
                 '''
             }
         }
+        stage('Apply aws-auth ConfigMap') {
+            steps {
+                sh '''
+                cat <<EOF | kubectl apply -f -
+                apiVersion: v1
+                kind: ConfigMap
+                metadata:
+                  name: aws-auth
+                  namespace: kube-system
+                data:
+                  mapRoles: |
+                    - rolearn: arn:aws:iam::339712721384:role/YOUR_WORKER_NODE_ROLE
+                      username: system:node:{{EC2PrivateDNSName}}
+                      groups:
+                        - system:bootstrappers
+                        - system:nodes
+                EOF
+                '''
+            }
+        }
         stage('Build Docker Image') {
             steps {
                 script {
