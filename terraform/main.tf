@@ -54,19 +54,10 @@ resource "aws_security_group" "eks_worker_sg" {
 # Fetch existing IAM roles if they exist
 data "aws_iam_role" "existing_cluster_role" {
   role_name = "eks-cluster-role"
-  count     = 0
-  # Handle when the role exists, fallback to avoid error
-  lifecycle {
-    ignore_changes = [assume_role_policy]
-  }
 }
 
 data "aws_iam_role" "existing_worker_role" {
   role_name = "eks-worker-role"
-  count     = 0
-  lifecycle {
-    ignore_changes = [assume_role_policy]
-  }
 }
 
 # EKS Cluster IAM Role (Create only if not exists)
