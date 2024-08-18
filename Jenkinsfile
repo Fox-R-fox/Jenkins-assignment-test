@@ -2,7 +2,8 @@ pipeline {
     agent any
 
     environment {
-        DOCKERHUB_PAT = credentials('docker-hub-creds')  // Reference to your stored Docker Hub PAT
+        // Referencing the credentials in Jenkins
+        DOCKERHUB_CREDS = credentials('docker-hub-creds')
     }
 
     stages {
@@ -15,10 +16,12 @@ pipeline {
 
         stage('Build and Push Docker Image') {
             steps {
-                // Run the shell script to build and push Docker image
                 script {
-                    sh 'chmod +x build_push.sh'
-                    sh './build_push.sh'
+                    // Run the shell script to build and push Docker image
+                    sh '''
+                    chmod +x build_push.sh
+                    ./build_push.sh $DOCKERHUB_CREDS_USR $DOCKERHUB_CREDS_PSW
+                    '''
                 }
             }
         }
