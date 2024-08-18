@@ -4,7 +4,7 @@
 if ! [ -x "$(command -v docker)" ]; then
   echo "Docker is not installed. Installing Docker..."
   
-  # Install Docker for Amazon Linux 2 (Adjust for your Linux distribution if needed)
+  # Install Docker for Amazon Linux 2 (or adjust for your Linux distribution)
   sudo yum update -y
   sudo yum install docker -y
 
@@ -21,10 +21,27 @@ else
 fi
 
 # Variables
-DOCKERHUB_USERNAME="foxe03"  # Replace with your Docker Hub username
+DOCKERHUB_USERNAME="foxe03"  # Your Docker Hub username
 IMAGE_NAME="$DOCKERHUB_USERNAME/gamelib:latest"
 
-# Login to Docker Hub using Jenkins-stored PAT
+# Check if the repository exists in Docker Hub
+REPO_RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" https://hub.docker.com/v2/repositories/$DOCKERHUB_USERNAME/gamelib/)
+
+if [ "$REPO_RESPONSE" -ne 200 ]; then
+    echo "Repository does not exist. Creating repository in Docker Hub..."
+
+    # Create the repository using Docker Hub API
+    curl -X POST https://hub.docker.com/v2/repositories/ \
+    -u "$DOCKERHUB_USERNAME:$DOCKERHUB_PASSWORD" \
+    -H "Content-Type: application/json" \
+    -d '{"name": "gamelib", "is_private": false}'
+
+    echo "Repository created successfully."
+else
+    echo "Repository already exists."
+fi
+
+# Login to Docker Hub using Jenkins-stored credentials
 echo "Logging into Docker Hub..."
 echo "$DOCKERHUB_PASSWORD" | docker login -u "$DOCKERHUB_USERNAME" --password-stdin
 
