@@ -153,6 +153,14 @@ data "aws_eks_cluster" "eks_cluster" {
   name = aws_eks_cluster.game_library_cluster.name
 }
 
+resource "aws_iam_openid_connect_provider" "oidc_provider" {
+  client_id_list = ["sts.amazonaws.com"]
+  url            = data.aws_eks_cluster.eks_cluster.identity[0].oidc.issuer
+  thumbprint_list = [
+    "9e99a48a9960b14926bb7f3b0d5364d0b4f90d4b"  # Example thumbprint, get the actual thumbprint for your issuer
+  ]
+}
+
 resource "aws_iam_role" "eks_pod_role" {
   name = "eks-pod-role"
 
@@ -161,7 +169,7 @@ resource "aws_iam_role" "eks_pod_role" {
     Statement = [{
       Effect = "Allow",
       Principal = {
-        Federated = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:oidc-provider/${replace(data.aws_eks_cluster.eks_cluster.identity[0].oidc.issuer, "https://", "")}"
+        Federated = "${aws_iam_openid_connect_provider.oidc_provider.arn}"
       },
       Action = "sts:AssumeRoleWithWebIdentity",
       Condition = {
