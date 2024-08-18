@@ -2,22 +2,22 @@ pipeline {
     agent any
 
     environment {
-        AWS_DEFAULT_REGION = 'us-east-1' // Change this to your region
-        AWS_CREDENTIALS_ID = 'aws'       // This is the ID of your AWS credentials in Jenkins
+        AWS_DEFAULT_REGION = 'us-east-1' // Set this to your region
+        AWS_CREDENTIALS_ID = 'aws'       // AWS credentials ID in Jenkins
     }
 
     stages {
         stage('Install AWS CLI and IAM Authenticator') {
             steps {
                 script {
-                    // Check if AWS CLI is already installed
+                    // Check if AWS CLI is installed
                     def checkAWSCLI = sh(script: "which aws || echo 'Not installed'", returnStdout: true).trim()
                     if (checkAWSCLI == 'Not installed') {
                         echo 'Installing AWS CLI...'
                         sh '''
                             curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
                             unzip awscliv2.zip
-                            ./aws/install
+                            sudo ./aws/install
                         '''
                     } else {
                         echo "AWS CLI is already installed"
@@ -28,12 +28,12 @@ pipeline {
                     if (checkAWSIAMAuthenticator == 'Not installed') {
                         echo 'Installing AWS IAM Authenticator...'
                         sh '''
-                            curl -o aws-iam-authenticator https://amazon-eks.s3.us-west-2.amazonaws.com/1.19.6/2021-01-05/bin/linux/amd64/aws-iam-authenticator
-                            chmod +x ./aws-iam-authenticator
-                            mv ./aws-iam-authenticator ${WORKSPACE}/aws-iam-authenticator
+                            TEMP_DIR=$(mktemp -d)
+                            curl -o ${TEMP_DIR}/aws-iam-authenticator https://amazon-eks.s3.us-east-1.amazonaws.com/1.19.6/2021-01-05/bin/linux/amd64/aws-iam-authenticator
+                            chmod +x ${TEMP_DIR}/aws-iam-authenticator
+                            sudo mv ${TEMP_DIR}/aws-iam-authenticator /usr/local/bin/aws-iam-authenticator
+                            rm -rf ${TEMP_DIR}
                         '''
-                        // Adding aws-iam-authenticator to the PATH
-                        env.PATH = "${env.WORKSPACE}:${env.PATH}"
                     } else {
                         echo "AWS IAM Authenticator is already installed"
                     }
