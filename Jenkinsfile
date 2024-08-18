@@ -14,7 +14,8 @@ pipeline {
                     if ! [ -x "$(command -v terraform)" ]; then
                       echo "Installing Terraform..."
                       curl -LO https://releases.hashicorp.com/terraform/1.3.1/terraform_1.3.1_linux_amd64.zip
-                      unzip -o terraform_1.3.1_linux_amd64.zip -d /usr/local/bin
+                      unzip -o terraform_1.3.1_linux_amd64.zip -d $HOME/bin
+                      export PATH=$HOME/bin:$PATH
                       terraform --version
                     fi
 
@@ -23,7 +24,9 @@ pipeline {
                       echo "Installing kubectl..."
                       curl -LO "https://dl.k8s.io/release/v1.26.3/bin/linux/amd64/kubectl"
                       chmod +x ./kubectl
-                      mv ./kubectl /usr/local/bin/kubectl
+                      mv ./kubectl $HOME/bin/kubectl
+                      export PATH=$HOME/bin:$PATH
+                      kubectl version --client
                     fi
                     '''
                 }
@@ -50,7 +53,10 @@ pipeline {
         stage('Provision Infrastructure with Terraform') {
             steps {
                 dir('terraform') {
-                    sh 'terraform init && terraform apply -auto-approve'
+                    sh '''
+                    export PATH=$HOME/bin:$PATH
+                    terraform init && terraform apply -auto-approve
+                    '''
                 }
             }
         }
@@ -58,7 +64,10 @@ pipeline {
         stage('Deploy to Kubernetes') {
             steps {
                 dir('kubernetes') {
-                    sh 'kubectl apply -f deployment.yaml'
+                    sh '''
+                    export PATH=$HOME/bin:$PATH
+                    kubectl apply -f deployment.yaml
+                    '''
                 }
             }
         }
