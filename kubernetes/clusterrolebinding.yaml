@@ -7,6 +7,6 @@ roleRef:
   kind: ClusterRole
   name: cluster-admin
 subjects:
-- kind: ServiceAccount
-  name: default
-  namespace: kube-system
+- kind: User
+  name: "arn:aws:iam::339712721384:user/user1"
+  apiGroup: rbac.authorization.k8s.io
