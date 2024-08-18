@@ -45,8 +45,8 @@ pipeline {
         }
 
         stage('Terraform Init & Apply') {
-            dir('terraform') {
-                steps {
+            steps {
+                dir('terraform') {
                     script {
                         // Initialize Terraform
                         sh 'terraform init'
@@ -76,9 +76,12 @@ pipeline {
         stage('Build Docker Image') {
             steps {
                 script {
-                    // Build Docker image here
-                    echo 'Building Docker image...'
-                    // Add your Docker build commands
+                    // Build Docker image
+                    sh '''
+                    docker build -t stewiedocker46/game-library-app:latest .
+                    docker login -u stewiedocker46 -p ${DOCKER_HUB_PASSWORD}
+                    docker push stewiedocker46/game-library-app:latest
+                    '''
                 }
             }
         }
@@ -87,8 +90,10 @@ pipeline {
             steps {
                 script {
                     // Deploy Docker image to Kubernetes
-                    echo 'Deploying Docker image to Kubernetes...'
-                    // Add your Kubernetes deployment commands
+                    sh '''
+                    kubectl set image deployment/game-library-deployment game-library-container=stewiedocker46/game-library-app:latest
+                    kubectl rollout status deployment/game-library-deployment
+                    '''
                 }
             }
         }
@@ -117,8 +122,7 @@ pipeline {
             steps {
                 script {
                     // Check worker node status
-                    echo 'Checking Worker Node Status...'
-                    // Add your kubectl get nodes commands
+                    sh 'kubectl get nodes'
                 }
             }
         }
