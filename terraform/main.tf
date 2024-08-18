@@ -51,8 +51,28 @@ resource "aws_security_group" "eks_worker_sg" {
   }
 }
 
-# EKS Cluster IAM Role
+# Fetch existing IAM roles if they exist
+data "aws_iam_role" "existing_cluster_role" {
+  role_name = "eks-cluster-role"
+  count     = 0
+  # Handle when the role exists, fallback to avoid error
+  lifecycle {
+    ignore_changes = [assume_role_policy]
+  }
+}
+
+data "aws_iam_role" "existing_worker_role" {
+  role_name = "eks-worker-role"
+  count     = 0
+  lifecycle {
+    ignore_changes = [assume_role_policy]
+  }
+}
+
+# EKS Cluster IAM Role (Create only if not exists)
 resource "aws_iam_role" "eks_cluster_role" {
+  count = length(data.aws_iam_role.existing_cluster_role.id) == 0 ? 1 : 0
+
   name = "eks-cluster-role"
 
   assume_role_policy = jsonencode({
@@ -69,8 +89,10 @@ resource "aws_iam_role" "eks_cluster_role" {
   })
 }
 
-# EKS Worker Node IAM Role
+# EKS Worker Node IAM Role (Create only if not exists)
 resource "aws_iam_role" "eks_worker_role" {
+  count = length(data.aws_iam_role.existing_worker_role.id) == 0 ? 1 : 0
+
   name = "eks-worker-role"
 
   assume_role_policy = jsonencode({
@@ -89,35 +111,35 @@ resource "aws_iam_role" "eks_worker_role" {
 
 # IAM Policy Attachments for EKS Cluster Role
 resource "aws_iam_role_policy_attachment" "eks_cluster_policy" {
-  role       = aws_iam_role.eks_cluster_role.name
+  role       = aws_iam_role.eks_cluster_role[0].name
   policy_arn = "arn:aws:iam::aws:policy/AmazonEKSClusterPolicy"
 }
 
 resource "aws_iam_role_policy_attachment" "eks_vpc_resource_controller" {
-  role       = aws_iam_role.eks_cluster_role.name
+  role       = aws_iam_role.eks_cluster_role[0].name
   policy_arn = "arn:aws:iam::aws:policy/AmazonEKSVPCResourceController"
 }
 
 # IAM Policy Attachments for EKS Worker Role
 resource "aws_iam_role_policy_attachment" "eks_worker_node_policy" {
-  role       = aws_iam_role.eks_worker_role.name
+  role       = aws_iam_role.eks_worker_role[0].name
   policy_arn = "arn:aws:iam::aws:policy/AmazonEKSWorkerNodePolicy"
 }
 
 resource "aws_iam_role_policy_attachment" "eks_cni_policy" {
-  role       = aws_iam_role.eks_worker_role.name
+  role       = aws_iam_role.eks_worker_role[0].name
   policy_arn = "arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy"
 }
 
 resource "aws_iam_role_policy_attachment" "ec2_container_registry_readonly" {
-  role       = aws_iam_role.eks_worker_role.name
+  role       = aws_iam_role.eks_worker_role[0].name
   policy_arn = "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly"
 }
 
 # EKS Cluster Definition
 resource "aws_eks_cluster" "game_library_cluster" {
   name     = "game-library-cluster"
-  role_arn = aws_iam_role.eks_cluster_role.arn
+  role_arn = aws_iam_role.eks_cluster_role[0].arn
 
   vpc_config {
     subnet_ids = aws_subnet.private_subnets[*].id
@@ -134,7 +156,7 @@ resource "aws_eks_cluster" "game_library_cluster" {
 resource "aws_eks_node_group" "game_library_nodes" {
   cluster_name    = aws_eks_cluster.game_library_cluster.name
   node_group_name = "game-library-nodes"
-  node_role_arn   = aws_iam_role.eks_worker_role.arn
+  node_role_arn   = aws_iam_role.eks_worker_role[0].arn
   subnet_ids      = aws_subnet.private_subnets[*].id
 
   scaling_config {
