@@ -2,50 +2,32 @@ provider "aws" {
   region = "us-east-1"
 }
 
-# VPC definition
+# Data Source for AWS Availability Zones
+data "aws_availability_zones" "available" {}
+
+# VPC
 resource "aws_vpc" "main" {
   cidr_block = "10.0.0.0/16"
-  enable_dns_support   = true
+  enable_dns_support = true
   enable_dns_hostnames = true
-
   tags = {
     Name = "main-vpc"
   }
 }
 
-# Subnets for the EKS cluster (private)
+# Subnet
 resource "aws_subnet" "private_subnets" {
-  count                   = 2
-  vpc_id                  = aws_vpc.main.id
-  cidr_block              = cidrsubnet(aws_vpc.main.cidr_block, 8, count.index + 1)
-  availability_zone       = element(data.aws_availability_zones.available.names, count.index)
-  map_public_ip_on_launch = false
-
+  vpc_id            = aws_vpc.main.id
+  cidr_block        = "10.0.1.0/24"
+  availability_zone = data.aws_availability_zones.available.names[0]
   tags = {
-    "kubernetes.io/role/internal-elb" = "1"
-    "kubernetes.io/cluster/game-library-cluster" = "shared"
-    Name = "private-subnet-${count.index}"
+    Name = "private-subnet"
   }
 }
 
-# Security group for EKS worker nodes
+# Security Group for EKS Workers
 resource "aws_security_group" "eks_worker_sg" {
   vpc_id = aws_vpc.main.id
-
-  ingress {
-    from_port   = 443
-    to_port     = 443
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
   tags = {
     Name = "eks-worker-sg"
   }
@@ -54,271 +36,77 @@ resource "aws_security_group" "eks_worker_sg" {
 # EKS Cluster IAM Role
 resource "aws_iam_role" "eks_cluster_role" {
   name = "eks-cluster-role"
-
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17",
-    Statement = [
-      {
-        Action    = "sts:AssumeRole",
-        Effect    = "Allow",
-        Principal = {
-          Service = "eks.amazonaws.com"
-        }
-      }
-    ]
-  })
+  assume_role_policy = data.aws_iam_policy_document.eks_cluster_policy.json
 }
 
-# EKS Worker Node IAM Role
+# EKS Worker IAM Role
 resource "aws_iam_role" "eks_worker_role" {
   name = "eks-worker-role"
-
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17",
-    Statement = [
-      {
-        Action    = "sts:AssumeRole",
-        Effect    = "Allow",
-        Principal = {
-          Service = "ec2.amazonaws.com"
-        }
-      }
-    ]
-  })
+  assume_role_policy = data.aws_iam_policy_document.eks_worker_policy.json
 }
 
-# IAM Policy Attachments for EKS Cluster Role
+# IAM Role Policy Attachments for EKS Cluster
 resource "aws_iam_role_policy_attachment" "eks_cluster_policy" {
-  role       = aws_iam_role.eks_cluster_role.name
   policy_arn = "arn:aws:iam::aws:policy/AmazonEKSClusterPolicy"
-}
-
-resource "aws_iam_role_policy_attachment" "eks_vpc_resource_controller" {
   role       = aws_iam_role.eks_cluster_role.name
-  policy_arn = "arn:aws:iam::aws:policy/AmazonEKSVPCResourceController"
 }
 
-# IAM Policy Attachments for EKS Worker Role
 resource "aws_iam_role_policy_attachment" "eks_worker_node_policy" {
-  role       = aws_iam_role.eks_worker_role.name
   policy_arn = "arn:aws:iam::aws:policy/AmazonEKSWorkerNodePolicy"
+  role       = aws_iam_role.eks_worker_role.name
 }
 
 resource "aws_iam_role_policy_attachment" "eks_cni_policy" {
-  role       = aws_iam_role.eks_worker_role.name
   policy_arn = "arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy"
+  role       = aws_iam_role.eks_worker_role.name
 }
 
 resource "aws_iam_role_policy_attachment" "ec2_container_registry_readonly" {
-  role       = aws_iam_role.eks_worker_role.name
   policy_arn = "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly"
+  role       = aws_iam_role.eks_worker_role.name
 }
 
-# EKS Cluster Definition
+# EKS Cluster
 resource "aws_eks_cluster" "game_library_cluster" {
   name     = "game-library-cluster"
   role_arn = aws_iam_role.eks_cluster_role.arn
 
   vpc_config {
-    subnet_ids         = aws_subnet.private_subnets[*].id
-    security_group_ids = [aws_security_group.eks_worker_sg.id]
+    subnet_ids = [aws_subnet.private_subnets.id]
   }
 
-  depends_on = [
-    aws_iam_role_policy_attachment.eks_cluster_policy,
-    aws_iam_role_policy_attachment.eks_vpc_resource_controller
-  ]
+  tags = {
+    Name = "game-library-cluster"
+  }
 }
 
-# EKS Node Group Definition
+# EKS Node Group
 resource "aws_eks_node_group" "game_library_nodes" {
   cluster_name    = aws_eks_cluster.game_library_cluster.name
   node_group_name = "game-library-nodes"
   node_role_arn   = aws_iam_role.eks_worker_role.arn
-  subnet_ids      = aws_subnet.private_subnets[*].id
+  subnet_ids      = [aws_subnet.private_subnets.id]
 
   scaling_config {
     desired_size = 2
-    min_size     = 1
     max_size     = 3
+    min_size     = 1
   }
 
-  depends_on = [
-    aws_eks_cluster.game_library_cluster,
-    aws_iam_role_policy_attachment.eks_worker_node_policy,
-    aws_iam_role_policy_attachment.eks_cni_policy,
-    aws_iam_role_policy_attachment.ec2_container_registry_readonly
-  ]
+  tags = {
+    Name = "game-library-nodes"
+  }
 }
 
-# Data sources to get AWS availability zones
-data "aws_availability_zones" "available" {
-  state = "available"
-}
-
-# Output EKS cluster name
+# Outputs
 output "eks_cluster_name" {
   value = aws_eks_cluster.game_library_cluster.name
 }
-provider "aws" {
-  region = "us-east-1"
+
+output "eks_cluster_endpoint" {
+  value = aws_eks_cluster.game_library_cluster.endpoint
 }
 
-# VPC definition
-resource "aws_vpc" "main" {
-  cidr_block = "10.0.0.0/16"
-  enable_dns_support   = true
-  enable_dns_hostnames = true
-
-  tags = {
-    Name = "main-vpc"
-  }
-}
-
-# Subnets for the EKS cluster (private)
-resource "aws_subnet" "private_subnets" {
-  count                   = 2
-  vpc_id                  = aws_vpc.main.id
-  cidr_block              = cidrsubnet(aws_vpc.main.cidr_block, 8, count.index + 1)
-  availability_zone       = element(data.aws_availability_zones.available.names, count.index)
-  map_public_ip_on_launch = false
-
-  tags = {
-    "kubernetes.io/role/internal-elb" = "1"
-    "kubernetes.io/cluster/game-library-cluster" = "shared"
-    Name = "private-subnet-${count.index}"
-  }
-}
-
-# Security group for EKS worker nodes
-resource "aws_security_group" "eks_worker_sg" {
-  vpc_id = aws_vpc.main.id
-
-  ingress {
-    from_port   = 443
-    to_port     = 443
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  tags = {
-    Name = "eks-worker-sg"
-  }
-}
-
-# EKS Cluster IAM Role
-resource "aws_iam_role" "eks_cluster_role" {
-  name = "eks-cluster-role"
-
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17",
-    Statement = [
-      {
-        Action    = "sts:AssumeRole",
-        Effect    = "Allow",
-        Principal = {
-          Service = "eks.amazonaws.com"
-        }
-      }
-    ]
-  })
-}
-
-# EKS Worker Node IAM Role
-resource "aws_iam_role" "eks_worker_role" {
-  name = "eks-worker-role"
-
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17",
-    Statement = [
-      {
-        Action    = "sts:AssumeRole",
-        Effect    = "Allow",
-        Principal = {
-          Service = "ec2.amazonaws.com"
-        }
-      }
-    ]
-  })
-}
-
-# IAM Policy Attachments for EKS Cluster Role
-resource "aws_iam_role_policy_attachment" "eks_cluster_policy" {
-  role       = aws_iam_role.eks_cluster_role.name
-  policy_arn = "arn:aws:iam::aws:policy/AmazonEKSClusterPolicy"
-}
-
-resource "aws_iam_role_policy_attachment" "eks_vpc_resource_controller" {
-  role       = aws_iam_role.eks_cluster_role.name
-  policy_arn = "arn:aws:iam::aws:policy/AmazonEKSVPCResourceController"
-}
-
-# IAM Policy Attachments for EKS Worker Role
-resource "aws_iam_role_policy_attachment" "eks_worker_node_policy" {
-  role       = aws_iam_role.eks_worker_role.name
-  policy_arn = "arn:aws:iam::aws:policy/AmazonEKSWorkerNodePolicy"
-}
-
-resource "aws_iam_role_policy_attachment" "eks_cni_policy" {
-  role       = aws_iam_role.eks_worker_role.name
-  policy_arn = "arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy"
-}
-
-resource "aws_iam_role_policy_attachment" "ec2_container_registry_readonly" {
-  role       = aws_iam_role.eks_worker_role.name
-  policy_arn = "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly"
-}
-
-# EKS Cluster Definition
-resource "aws_eks_cluster" "game_library_cluster" {
-  name     = "game-library-cluster"
-  role_arn = aws_iam_role.eks_cluster_role.arn
-
-  vpc_config {
-    subnet_ids         = aws_subnet.private_subnets[*].id
-    security_group_ids = [aws_security_group.eks_worker_sg.id]
-  }
-
-  depends_on = [
-    aws_iam_role_policy_attachment.eks_cluster_policy,
-    aws_iam_role_policy_attachment.eks_vpc_resource_controller
-  ]
-}
-
-# EKS Node Group Definition
-resource "aws_eks_node_group" "game_library_nodes" {
-  cluster_name    = aws_eks_cluster.game_library_cluster.name
-  node_group_name = "game-library-nodes"
-  node_role_arn   = aws_iam_role.eks_worker_role.arn
-  subnet_ids      = aws_subnet.private_subnets[*].id
-
-  scaling_config {
-    desired_size = 2
-    min_size     = 1
-    max_size     = 3
-  }
-
-  depends_on = [
-    aws_eks_cluster.game_library_cluster,
-    aws_iam_role_policy_attachment.eks_worker_node_policy,
-    aws_iam_role_policy_attachment.eks_cni_policy,
-    aws_iam_role_policy_attachment.ec2_container_registry_readonly
-  ]
-}
-
-# Data sources to get AWS availability zones
-data "aws_availability_zones" "available" {
-  state = "available"
-}
-
-# Output EKS cluster name
-output "eks_cluster_name" {
-  value = aws_eks_cluster.game_library_cluster.name
+output "eks_cluster_certificate_authority" {
+  value = aws_eks_cluster.game_library_cluster.certificate_authority[0].data
 }
