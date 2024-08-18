@@ -1,16 +1,26 @@
-#!/bin/bash
+pipeline {
+    agent any
 
-# Variables
-IMAGE_NAME="$DOCKERHUB_USERNAME/your-app-image:latest"
+    environment {
+        DOCKERHUB_PAT = credentials('docker-hub-pat')  // Reference to your stored Docker Hub PAT
+    }
 
-# Login to Docker Hub
-echo "Logging into Docker Hub..."
-echo "$DOCKERHUB_PASSWORD" | docker login -u "$DOCKERHUB_USERNAME" --password-stdin
+    stages {
+        stage('Checkout Code') {
+            steps {
+                // Checkout code from GitHub
+                git url: "https://github.com/Fox-R-fox/Jenkins-assignment-test.git", branch: 'master'
+            }
+        }
 
-# Build Docker Image
-echo "Building Docker image..."
-docker build -t "$IMAGE_NAME" .
-
-# Push Docker Image to Docker Hub
-echo "Pushing Docker image to Docker Hub..."
-docker push "$IMAGE_NAME"
+        stage('Build and Push Docker Image') {
+            steps {
+                // Run the shell script to build and push Docker image
+                script {
+                    sh 'chmod +x build_push.sh'
+                    sh './build_push.sh'
+                }
+            }
+        }
+    }
+}
