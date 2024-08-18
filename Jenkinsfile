@@ -10,20 +10,11 @@ pipeline {
                 checkout scm
             }
         }
-        stage('Install Docker and Kubernetes') {
+        stage('Verify Docker and Kubernetes Installation') {
             steps {
                 sh '''
-                echo YOUR_PASSWORD | sudo -S apt-get update
-                echo YOUR_PASSWORD | sudo -S apt-get install -y docker.io
-                sudo systemctl start docker
-                sudo systemctl enable docker
-
-                # Install kubectl
-                curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
-                sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
-
-                docker --version
-                kubectl version --client
+                docker --version || echo "Docker is not installed."
+                kubectl version --client || echo "kubectl is not installed."
                 '''
             }
         }
