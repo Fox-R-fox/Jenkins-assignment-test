@@ -11,15 +11,13 @@ pipeline {
         stage('Install AWS CLI and IAM Authenticator') {
             steps {
                 script {
-                    // Ensure AWS CLI is installed
                     def checkAWSCLI = sh(script: "which aws || echo 'Not installed'", returnStdout: true).trim()
                     if (checkAWSCLI == 'Not installed') {
-                        error "AWS CLI not installed. Please install it."
+                        error "AWS CLI not installed."
                     } else {
                         echo "AWS CLI is already installed"
                     }
 
-                    // Ensure aws-iam-authenticator is installed
                     def checkIAMAuth = sh(script: "which aws-iam-authenticator || echo 'Not installed'", returnStdout: true).trim()
                     if (checkIAMAuth == 'Not installed') {
                         echo "Installing AWS IAM Authenticator..."
@@ -39,10 +37,16 @@ pipeline {
             steps {
                 withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', credentialsId: AWS_CREDENTIALS_ID]]) {
                     script {
+                        // Ensure AWS credentials are available
+                        sh 'aws sts get-caller-identity'
+
                         // Update kubeconfig for the cluster
                         sh 'aws eks update-kubeconfig --name game-library-cluster'
-                        // Debug step: Check Kubernetes context and nodes
-                        sh 'kubectl config view'
+
+                        // Validate the context
+                        sh 'kubectl config use-context arn:aws:eks:us-east-1:339712721384:cluster/game-library-cluster'
+                        
+                        // Debugging kubectl auth issue
                         sh 'kubectl get nodes'
                     }
                 }
@@ -52,7 +56,6 @@ pipeline {
         stage('Create aws-auth ConfigMap') {
             steps {
                 script {
-                    // Generate aws-auth.yaml
                     sh '''
                     cat <<EOF > aws-auth.yaml
                     apiVersion: v1
@@ -78,7 +81,6 @@ pipeline {
             steps {
                 withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', credentialsId: AWS_CREDENTIALS_ID]]) {
                     script {
-                        // Apply the aws-auth.yaml to the cluster
                         sh 'kubectl apply -f aws-auth.yaml'
                     }
                 }
@@ -88,7 +90,6 @@ pipeline {
         stage('Check Worker Node Status') {
             steps {
                 script {
-                    // Check if worker nodes are ready
                     sh 'kubectl get nodes'
                 }
             }
