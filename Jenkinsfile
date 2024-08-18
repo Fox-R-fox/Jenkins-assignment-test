@@ -2,7 +2,7 @@ pipeline {
     agent any
 
     environment {
-        DOCKERHUB_PAT = credentials('docker-hub-pat')  // Reference to your stored Docker Hub PAT
+        DOCKERHUB_PAT = credentials('docker-hub-creds')  // Reference to your stored Docker Hub PAT
     }
 
     stages {
