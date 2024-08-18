@@ -13,9 +13,9 @@ pipeline {
                     # Install Terraform
                     if ! [ -x "$(command -v terraform)" ]; then
                       echo "Installing Terraform..."
-                      curl -LO "https://releases.hashicorp.com/terraform/1.3.1/terraform_1.3.1_linux_amd64.zip"
-                      unzip terraform_1.3.1_linux_amd64.zip
-                      mv terraform /usr/local/bin/
+                      curl -LO https://releases.hashicorp.com/terraform/1.3.1/terraform_1.3.1_linux_amd64.zip
+                      unzip -o terraform_1.3.1_linux_amd64.zip -d /usr/local/bin
+                      terraform --version
                     fi
 
                     # Install kubectl
