@@ -2,15 +2,16 @@ pipeline {
     agent any
 
     environment {
-        AWS_DEFAULT_REGION = 'us-east-1' // Set this to your region
-        AWS_CREDENTIALS_ID = 'aws'       // AWS credentials ID in Jenkins
+        AWS_DEFAULT_REGION = 'us-east-1'
+        AWS_CREDENTIALS_ID = 'aws'
+        PATH = "${WORKSPACE}/bin:${env.PATH}"  // Add a custom bin directory to PATH
     }
 
     stages {
         stage('Install AWS CLI and IAM Authenticator') {
             steps {
                 script {
-                    // Check if AWS CLI is installed
+                    // Check if AWS CLI is already installed
                     def checkAWSCLI = sh(script: "which aws || echo 'Not installed'", returnStdout: true).trim()
                     if (checkAWSCLI == 'Not installed') {
                         echo 'Installing AWS CLI...'
@@ -23,16 +24,14 @@ pipeline {
                         echo "AWS CLI is already installed"
                     }
 
-                    // Check if AWS IAM Authenticator is installed
-                    def checkAWSIAMAuthenticator = sh(script: "which aws-iam-authenticator || echo 'Not installed'", returnStdout: true).trim()
-                    if (checkAWSIAMAuthenticator == 'Not installed') {
+                    // Install AWS IAM Authenticator in Jenkins workspace
+                    def checkIAMAuthenticator = sh(script: "which aws-iam-authenticator || echo 'Not installed'", returnStdout: true).trim()
+                    if (checkIAMAuthenticator == 'Not installed') {
                         echo 'Installing AWS IAM Authenticator...'
                         sh '''
-                            TEMP_DIR=$(mktemp -d)
-                            curl -o ${TEMP_DIR}/aws-iam-authenticator https://amazon-eks.s3.us-east-1.amazonaws.com/1.19.6/2021-01-05/bin/linux/amd64/aws-iam-authenticator
-                            chmod +x ${TEMP_DIR}/aws-iam-authenticator
-                            mv ${TEMP_DIR}/aws-iam-authenticator /usr/bin/aws-iam-authenticator
-                            rm -rf ${TEMP_DIR}
+                            mkdir -p ${WORKSPACE}/bin
+                            curl -o ${WORKSPACE}/bin/aws-iam-authenticator https://amazon-eks.s3.us-east-1.amazonaws.com/1.19.6/2021-01-05/bin/linux/amd64/aws-iam-authenticator
+                            chmod +x ${WORKSPACE}/bin/aws-iam-authenticator
                         '''
                     } else {
                         echo "AWS IAM Authenticator is already installed"
@@ -51,7 +50,50 @@ pipeline {
             }
         }
 
-        // Other stages...
+        stage('Create aws-auth ConfigMap') {
+            steps {
+                script {
+                    sh '''
+                    cat <<EOF > aws-auth.yaml
+                    apiVersion: v1
+                    kind: ConfigMap
+                    metadata:
+                      name: aws-auth
+                      namespace: kube-system
+                    data:
+                      mapRoles: |
+                        - rolearn: arn:aws:iam::<YOUR-AWS-ACCOUNT-ID>:role/<YOUR-WORKER-ROLE-NAME>
+                          username: system:node:{{EC2PrivateDNSName}}
+                          groups:
+                            - system:bootstrappers
+                            - system:nodes
+                    EOF
+                    '''
+                    echo "aws-auth.yaml file created"
+                }
+            }
+        }
+
+        stage('Apply aws-auth ConfigMap to EKS Cluster') {
+            steps {
+                withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', credentialsId: AWS_CREDENTIALS_ID]]) {
+                    script {
+                        sh 'kubectl apply -f aws-auth.yaml'
+                        echo "aws-auth ConfigMap applied to EKS Cluster"
+                    }
+                }
+            }
+        }
+
+        stage('Check Worker Node Status') {
+            steps {
+                withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', credentialsId: AWS_CREDENTIALS_ID]]) {
+                    script {
+                        sh 'kubectl get nodes'
+                    }
+                }
+            }
+        }
     }
 
     post {
