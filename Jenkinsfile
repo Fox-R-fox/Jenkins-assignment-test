@@ -2,9 +2,9 @@ pipeline {
     agent any
 
     environment {
-        AWS_DEFAULT_REGION = 'us-west-2'
-        AWS_CREDENTIALS_ID = 'aws'
-        EKS_WORKER_ROLE_ARN = 'arn:aws:iam::339712721384:role/eksssttooooo'
+        AWS_DEFAULT_REGION = 'us-east-1' // Adjust your region
+        AWS_CREDENTIALS_ID = 'aws'       // Ensure the correct AWS credentials are used
+        EKS_CLUSTER_NAME = 'game-library-cluster'  // EKS Cluster name
     }
 
     stages {
@@ -31,7 +31,9 @@ pipeline {
                 withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', credentialsId: AWS_CREDENTIALS_ID]]) {
                     script {
                         // Authenticate with the EKS cluster
-                        sh "aws eks update-kubeconfig --name <cluster-name> --region ${env.AWS_DEFAULT_REGION}"
+                        sh """
+                            aws eks update-kubeconfig --name ${EKS_CLUSTER_NAME}
+                        """
                     }
                 }
             }
@@ -40,6 +42,7 @@ pipeline {
         stage('Create aws-auth ConfigMap') {
             steps {
                 script {
+                    // Generate the aws-auth.yaml file dynamically
                     sh """
                     cat <<EOF > aws-auth.yaml
                     apiVersion: v1
@@ -49,7 +52,7 @@ pipeline {
                       namespace: kube-system
                     data:
                       mapRoles: |
-                        - rolearn: ${env.EKS_WORKER_ROLE_ARN}
+                        - rolearn: arn:aws:iam::339712721384:role/eksssttooooo
                           username: system:node:{{EC2PrivateDNSName}}
                           groups:
                             - system:bootstrappers
@@ -65,6 +68,7 @@ pipeline {
             steps {
                 withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', credentialsId: AWS_CREDENTIALS_ID]]) {
                     script {
+                        // Apply the aws-auth.yaml file to the cluster
                         sh 'kubectl apply -f aws-auth.yaml'
                         echo "aws-auth ConfigMap applied to EKS Cluster"
                     }
@@ -76,6 +80,7 @@ pipeline {
             steps {
                 withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', credentialsId: AWS_CREDENTIALS_ID]]) {
                     script {
+                        // Check if worker nodes are ready
                         sh 'kubectl get nodes'
                     }
                 }
