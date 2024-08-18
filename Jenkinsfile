@@ -13,17 +13,17 @@ pipeline {
                     # Install Terraform
                     if ! [ -x "$(command -v terraform)" ]; then
                       echo "Installing Terraform..."
-                      sudo yum install -y yum-utils
-                      sudo yum-config-manager --add-repo https://rpm.releases.hashicorp.com/AmazonLinux/hashicorp.repo
-                      sudo yum -y install terraform
+                      curl -LO "https://releases.hashicorp.com/terraform/1.3.1/terraform_1.3.1_linux_amd64.zip"
+                      unzip terraform_1.3.1_linux_amd64.zip
+                      mv terraform /usr/local/bin/
                     fi
 
                     # Install kubectl
                     if ! [ -x "$(command -v kubectl)" ]; then
                       echo "Installing kubectl..."
-                      curl -LO "https://storage.googleapis.com/kubernetes-release/release/$(curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt)/bin/linux/amd64/kubectl"
+                      curl -LO "https://dl.k8s.io/release/v1.26.3/bin/linux/amd64/kubectl"
                       chmod +x ./kubectl
-                      sudo mv ./kubectl /usr/local/bin/kubectl
+                      mv ./kubectl /usr/local/bin/kubectl
                     fi
                     '''
                 }
