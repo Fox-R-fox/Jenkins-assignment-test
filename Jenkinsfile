@@ -2,36 +2,35 @@ pipeline {
     agent any
 
     environment {
-        AWS_DEFAULT_REGION = 'us-east-1'
-        AWS_CREDENTIALS_ID = 'aws'
-        EKS_CLUSTER_NAME = 'game-library-cluster'
+        AWS_DEFAULT_REGION = 'us-east-1' // Change this to your region
+        AWS_CREDENTIALS_ID = 'aws'       // This is the ID of your AWS credentials in Jenkins
     }
 
     stages {
         stage('Install AWS CLI and IAM Authenticator') {
             steps {
                 script {
-                    // Install AWS CLI if missing
+                    // Check if AWS CLI is already installed
                     def checkAWSCLI = sh(script: "which aws || echo 'Not installed'", returnStdout: true).trim()
                     if (checkAWSCLI == 'Not installed') {
                         echo 'Installing AWS CLI...'
                         sh '''
                             curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
                             unzip awscliv2.zip
-                            sudo ./aws/install
+                            ./aws/install
                         '''
                     } else {
                         echo "AWS CLI is already installed"
                     }
 
-                    // Install AWS IAM Authenticator if missing
+                    // Check if AWS IAM Authenticator is installed
                     def checkAWSIAMAuthenticator = sh(script: "which aws-iam-authenticator || echo 'Not installed'", returnStdout: true).trim()
                     if (checkAWSIAMAuthenticator == 'Not installed') {
                         echo 'Installing AWS IAM Authenticator...'
                         sh '''
                             curl -o aws-iam-authenticator https://amazon-eks.s3.us-west-2.amazonaws.com/1.19.6/2021-01-05/bin/linux/amd64/aws-iam-authenticator
                             chmod +x ./aws-iam-authenticator
-                            sudo mv aws-iam-authenticator /usr/local/bin
+                            mv aws-iam-authenticator /usr/bin/aws-iam-authenticator
                         '''
                     } else {
                         echo "AWS IAM Authenticator is already installed"
@@ -44,54 +43,13 @@ pipeline {
             steps {
                 withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', credentialsId: AWS_CREDENTIALS_ID]]) {
                     script {
-                        sh "aws eks update-kubeconfig --name ${EKS_CLUSTER_NAME} --region ${AWS_DEFAULT_REGION}"
+                        sh 'aws eks update-kubeconfig --name game-library-cluster'
                     }
                 }
             }
         }
 
-        stage('Create aws-auth ConfigMap') {
-            steps {
-                script {
-                    sh """
-                    cat <<EOF > aws-auth.yaml
-                    apiVersion: v1
-                    kind: ConfigMap
-                    metadata:
-                      name: aws-auth
-                      namespace: kube-system
-                    data:
-                      mapRoles: |
-                        - rolearn: arn:aws:iam::339712721384:role/eksssttooooo
-                          username: system:node:{{EC2PrivateDNSName}}
-                          groups:
-                            - system:bootstrappers
-                            - system:nodes
-                    EOF
-                    """
-                }
-            }
-        }
-
-        stage('Apply aws-auth ConfigMap to EKS Cluster') {
-            steps {
-                withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', credentialsId: AWS_CREDENTIALS_ID]]) {
-                    script {
-                        sh 'kubectl apply -f aws-auth.yaml'
-                    }
-                }
-            }
-        }
-
-        stage('Check Worker Node Status') {
-            steps {
-                withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', credentialsId: AWS_CREDENTIALS_ID]]) {
-                    script {
-                        sh 'kubectl get nodes'
-                    }
-                }
-            }
-        }
+        // Remaining stages...
     }
 
     post {
