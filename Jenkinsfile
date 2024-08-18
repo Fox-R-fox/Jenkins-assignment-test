@@ -3,36 +3,10 @@ pipeline {
 
     environment {
         DOCKERHUB_CREDS = credentials('docker-hub-creds')
+        PATH = "/usr/local/bin:$PATH" // Ensure Docker and kubectl are in the PATH
     }
 
     stages {
-        stage('Install Dependencies') {
-            steps {
-                script {
-                    sh '''
-                    # Install Terraform
-                    if ! [ -x "$(command -v terraform)" ]; then
-                      echo "Installing Terraform..."
-                      curl -LO https://releases.hashicorp.com/terraform/1.3.1/terraform_1.3.1_linux_amd64.zip
-                      unzip -o terraform_1.3.1_linux_amd64.zip -d $HOME/bin
-                      export PATH=$HOME/bin:$PATH
-                      terraform --version
-                    fi
-
-                    # Install kubectl
-                    if ! [ -x "$(command -v kubectl)" ]; then
-                      echo "Installing kubectl..."
-                      curl -LO "https://dl.k8s.io/release/v1.26.3/bin/linux/amd64/kubectl"
-                      chmod +x ./kubectl
-                      mv ./kubectl $HOME/bin/kubectl
-                      export PATH=$HOME/bin:$PATH
-                      kubectl version --client
-                    fi
-                    '''
-                }
-            }
-        }
-
         stage('Checkout Code') {
             steps {
                 git url: "https://github.com/Fox-R-fox/Jenkins-assignment-test.git", branch: 'master'
@@ -43,7 +17,10 @@ pipeline {
             steps {
                 script {
                     sh '''
+                    # Ensure the script is executable
                     chmod +x build_push.sh
+                    
+                    # Execute the build and push script with Docker Hub credentials
                     ./build_push.sh $DOCKERHUB_CREDS_USR $DOCKERHUB_CREDS_PSW
                     '''
                 }
@@ -54,8 +31,9 @@ pipeline {
             steps {
                 dir('terraform') {
                     sh '''
-                    export PATH=$HOME/bin:$PATH
-                    terraform init && terraform apply -auto-approve
+                    # Initialize and apply Terraform configurations
+                    terraform init
+                    terraform apply -auto-approve
                     '''
                 }
             }
@@ -65,7 +43,7 @@ pipeline {
             steps {
                 dir('kubernetes') {
                     sh '''
-                    export PATH=$HOME/bin:$PATH
+                    # Apply Kubernetes deployment configurations
                     kubectl apply -f deployment.yaml
                     '''
                 }
