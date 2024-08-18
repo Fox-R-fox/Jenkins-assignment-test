@@ -1,95 +1,76 @@
 pipeline {
     agent any
     environment {
-        AWS_CREDENTIALS_ID = 'aws'
-        GITHUB_CREDENTIALS_ID = '670be704-04a6-4619-b231-fa7c149d2320'
-        DOCKER_CREDENTIALS_ID = 'docker-hub-creds'
+        DOCKER_HUB_CREDENTIALS = credentials('docker-hub-creds')
+        AWS_CREDENTIALS = credentials('aws')
     }
     stages {
-        stage('Checkout Code') {
+        stage('Declarative: Checkout SCM') {
             steps {
-                git credentialsId: "${GITHUB_CREDENTIALS_ID}", url: 'https://github.com/Fox-R-fox/Jenkins-assignment-test.git'
+                checkout scm
             }
         }
         stage('Install Docker and Kubernetes') {
             steps {
                 sh '''
-                # Install Docker
-                sudo apt-get update
-                sudo apt-get install -y docker.io
+                echo YOUR_PASSWORD | sudo -S apt-get update
+                echo YOUR_PASSWORD | sudo -S apt-get install -y docker.io
                 sudo systemctl start docker
                 sudo systemctl enable docker
 
                 # Install kubectl
-                sudo curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+                curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
                 sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
 
-                # Verify installations
                 docker --version
                 kubectl version --client
                 '''
             }
         }
         stage('Authenticate with Kubernetes') {
-            environment {
-                AWS_ACCESS_KEY_ID = credentials("${AWS_CREDENTIALS_ID}")
-                AWS_SECRET_ACCESS_KEY = credentials("${AWS_CREDENTIALS_ID}")
-            }
             steps {
-                sh '''
-                aws eks update-kubeconfig --name game-library-cluster --region us-east-1
-                kubectl get nodes
-                '''
+                withCredentials([usernamePassword(credentialsId: 'aws', usernameVariable: 'AWS_ACCESS_KEY_ID', passwordVariable: 'AWS_SECRET_ACCESS_KEY')]) {
+                    sh '''
+                    aws sts get-caller-identity
+                    aws eks update-kubeconfig --name game-library-cluster --region us-east-1
+                    kubectl config use-context arn:aws:eks:us-east-1:339712721384:cluster/game-library-cluster
+                    '''
+                }
             }
         }
         stage('Apply aws-auth ConfigMap') {
             steps {
-                sh '''
-                cat <<EOF | kubectl apply -f -
-                apiVersion: v1
-                kind: ConfigMap
-                metadata:
-                  name: aws-auth
-                  namespace: kube-system
-                data:
-                  mapRoles: |
-                    - rolearn: arn:aws:iam::339712721384:role/YOUR_WORKER_NODE_ROLE
-                      username: system:node:{{EC2PrivateDNSName}}
-                      groups:
-                        - system:bootstrappers
-                        - system:nodes
-                EOF
-                '''
+                withCredentials([usernamePassword(credentialsId: 'aws', usernameVariable: 'AWS_ACCESS_KEY_ID', passwordVariable: 'AWS_SECRET_ACCESS_KEY')]) {
+                    dir('terraform') {
+                        sh '''
+                        kubectl apply -f aws-auth.yaml
+                        '''
+                    }
+                }
             }
         }
         stage('Build Docker Image') {
             steps {
                 script {
-                    docker.withRegistry('https://index.docker.io/v1/', "${DOCKER_CREDENTIALS_ID}") {
-                        def image = docker.build('stewiedocker46/game-library')
-                        image.push('latest')
-                    }
+                    docker.build('your-docker-image')
                 }
             }
         }
         stage('Deploy Docker Image to Kubernetes') {
             steps {
-                sh '''
-                kubectl apply -f k8s/deployment.yaml
-                kubectl apply -f k8s/service.yaml
-                '''
+                script {
+                    sh 'kubectl apply -f deployment.yaml'
+                }
             }
         }
     }
     post {
         always {
             cleanWs()
-        }
-        success {
-            echo 'Pipeline succeeded!'
+            echo 'Pipeline finished.'
         }
         failure {
-            echo 'Pipeline failed.'
+            echo 'Pipeline failed. Please check the logs for errors.'
         }
     }
 }
