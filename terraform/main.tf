@@ -154,11 +154,9 @@ data "aws_eks_cluster" "eks_cluster" {
 }
 
 resource "aws_iam_openid_connect_provider" "oidc_provider" {
-  client_id_list = ["sts.amazonaws.com"]
-  url            = data.aws_eks_cluster.eks_cluster.identity[0].oidc.issuer
-  thumbprint_list = [
-    "9e99a48a9960b14926bb7f3b0d5364d0b4f90d4b"  # Example thumbprint, get the actual thumbprint for your issuer
-  ]
+  client_id_list   = ["sts.amazonaws.com"]
+  url              = data.aws_eks_cluster.eks_cluster.identity[0].oidc.issuer
+  thumbprint_list  = ["9e99a48a9960b14926bb7f3b0d5364d0b4f90d4b"]  # Example thumbprint, get the actual thumbprint for your issuer
 }
 
 resource "aws_iam_role" "eks_pod_role" {
@@ -169,7 +167,7 @@ resource "aws_iam_role" "eks_pod_role" {
     Statement = [{
       Effect = "Allow",
       Principal = {
-        Federated = "${aws_iam_openid_connect_provider.oidc_provider.arn}"
+        Federated = aws_iam_openid_connect_provider.oidc_provider.arn
       },
       Action = "sts:AssumeRoleWithWebIdentity",
       Condition = {
