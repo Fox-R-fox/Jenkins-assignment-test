@@ -17,7 +17,7 @@ pipeline {
             steps {
                 // Run the shell script to build and push Docker image
                 script {
-                    sh 'chmod +x scripts/build_push.sh'
+                    sh 'chmod +x build_push.sh'
                     sh './scripts/build_push.sh'
                 }
             }
