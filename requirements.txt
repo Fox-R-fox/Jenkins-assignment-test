@@ -1,6 +1,2 @@
 Flask==2.1.1
 requests==2.27.1
-<<<<<<< HEAD
-=======
-Werkzeug==2.0.1
->>>>>>> 21d5f00ec74e329e66543865a9efdb6de32a7a37
