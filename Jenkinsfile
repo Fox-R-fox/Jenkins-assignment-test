@@ -2,7 +2,6 @@ pipeline {
     agent any
     environment {
         DOCKER_HUB_CREDENTIALS = credentials('docker-hub-creds')
-        AWS_CREDENTIALS = credentials('aws')
     }
     stages {
         stage('Declarative: Checkout SCM') {
@@ -20,7 +19,7 @@ pipeline {
         }
         stage('Authenticate with Kubernetes') {
             steps {
-                withCredentials([usernamePassword(credentialsId: 'aws', usernameVariable: 'AWS_ACCESS_KEY_ID', passwordVariable: 'AWS_SECRET_ACCESS_KEY')]) {
+                withAWS(credentials: 'aws', region: 'us-east-1') {
                     sh '''
                     aws sts get-caller-identity
                     aws eks update-kubeconfig --name game-library-cluster --region us-east-1
@@ -31,12 +30,8 @@ pipeline {
         }
         stage('Apply aws-auth ConfigMap') {
             steps {
-                withCredentials([usernamePassword(credentialsId: 'aws', usernameVariable: 'AWS_ACCESS_KEY_ID', passwordVariable: 'AWS_SECRET_ACCESS_KEY')]) {
-                    dir('terraform') {
-                        sh '''
-                        kubectl apply -f aws-auth.yaml
-                        '''
-                    }
+                dir('terraform') {
+                    sh 'kubectl apply -f aws-auth.yaml'
                 }
             }
         }
@@ -49,9 +44,7 @@ pipeline {
         }
         stage('Deploy Docker Image to Kubernetes') {
             steps {
-                script {
-                    sh 'kubectl apply -f deployment.yaml'
-                }
+                sh 'kubectl apply -f deployment.yaml'
             }
         }
     }
