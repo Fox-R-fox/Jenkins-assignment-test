@@ -31,7 +31,7 @@ pipeline {
                             TEMP_DIR=$(mktemp -d)
                             curl -o ${TEMP_DIR}/aws-iam-authenticator https://amazon-eks.s3.us-east-1.amazonaws.com/1.19.6/2021-01-05/bin/linux/amd64/aws-iam-authenticator
                             chmod +x ${TEMP_DIR}/aws-iam-authenticator
-                            sudo mv ${TEMP_DIR}/aws-iam-authenticator /usr/local/bin/aws-iam-authenticator
+                            mv ${TEMP_DIR}/aws-iam-authenticator /usr/bin/aws-iam-authenticator
                             rm -rf ${TEMP_DIR}
                         '''
                     } else {
